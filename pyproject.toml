@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "downloads-organizer"
+version = "1.0.0"
+description = "Smart downloads folder organizer powered by local AI (Ollama)"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Jarsa Sistemas", email = "hola@jarsa.com.mx" }]
+keywords = ["downloads", "organizer", "ollama", "ai", "automation", "files", "productivity"]
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Utilities",
+    "Topic :: System :: Filesystems",
+]
+dependencies = [
+    "click>=8.1",
+    "watchdog>=4.0",
+    "pyyaml>=6.0",
+    "httpx>=0.27",
+    "schedule>=1.2",
+    "pdfplumber>=0.11",
+    "python-docx>=1.1",
+    "rich>=13.0",
+    "platformdirs>=4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.4",
+    "mypy>=1.10",
+    "build>=1.2",
+    "twine>=5.0",
+]
+
+[project.scripts]
+downloads-organizer = "downloads_organizer.cli:main"
+dorg = "downloads_organizer.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/jarsa/downloads-organizer"
+Repository = "https://github.com/jarsa/downloads-organizer"
+Documentation = "https://github.com/jarsa/downloads-organizer#readme"
+"Bug Tracker" = "https://github.com/jarsa/downloads-organizer/issues"
+Changelog = "https://github.com/jarsa/downloads-organizer/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["downloads_organizer*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=downloads_organizer --cov-report=term-missing"

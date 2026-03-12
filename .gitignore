@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+*.egg
+
+# Build / dist
+dist/
+build/
+
+# Virtual environments
+.env
+.venv/
+venv/
+env/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# Logs / coverage
+*.log
+htmlcov/
+.coverage
+coverage.xml
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo

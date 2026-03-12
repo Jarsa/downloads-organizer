@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "downloads-organizer"
-version = "1.0.2"
+version = "1.0.3"
 description = "Smart downloads folder organizer powered by local AI (Ollama)"
 readme = "README.md"
 license = { file = "LICENSE" }

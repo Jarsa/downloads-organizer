@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from downloads_organizer.classifier import (
+    _classify_by_type,
     _format_size,
     _should_process,
     extract_content_preview,
@@ -70,6 +71,61 @@ class TestShouldProcess:
         p.name = "Thumbs.db"
         p.suffix = ".db"
         assert _should_process(p, DEFAULT_CONFIG) is False
+
+
+class TestClassifyByType:
+    def test_pdf_returns_normal_priority(self, tmp_path):
+        f = tmp_path / "informe.pdf"
+        f.touch()
+        result = _classify_by_type("documento", f, DEFAULT_CONFIG)
+        assert result["priority"] == "normal"
+        assert result["file_type"] == "documento"
+
+    def test_filename_keyword_urgente(self, tmp_path):
+        f = tmp_path / "factura_enero.pdf"
+        f.touch()
+        result = _classify_by_type("documento", f, DEFAULT_CONFIG)
+        assert result["priority"] == "urgente"
+
+    def test_filename_keyword_archivo(self, tmp_path):
+        f = tmp_path / "backup_2022.zip"
+        f.touch()
+        result = _classify_by_type("comprimido", f, DEFAULT_CONFIG)
+        assert result["priority"] == "archivo"
+
+    def test_instalador_defaults_to_archivo(self, tmp_path):
+        f = tmp_path / "setup.exe"
+        f.touch()
+        result = _classify_by_type("instalador", f, DEFAULT_CONFIG)
+        assert result["priority"] == "archivo"
+
+    def test_comprimido_defaults_to_archivo(self, tmp_path):
+        f = tmp_path / "pack.zip"
+        f.touch()
+        result = _classify_by_type("comprimido", f, DEFAULT_CONFIG)
+        assert result["priority"] == "archivo"
+
+    def test_returns_dict_with_required_keys(self, tmp_path):
+        f = tmp_path / "foto.jpg"
+        f.touch()
+        result = _classify_by_type("imagen", f, DEFAULT_CONFIG)
+        assert "priority" in result
+        assert "project" in result
+        assert "file_type" in result
+
+    def test_uses_first_configured_project(self, tmp_path):
+        f = tmp_path / "doc.pdf"
+        f.touch()
+        config = {**DEFAULT_CONFIG, "projects": ["Trabajo", "Personal"]}
+        result = _classify_by_type("documento", f, config)
+        assert result["project"] == "Trabajo"
+
+    def test_fallback_to_sin_clasificar_when_no_projects(self, tmp_path):
+        f = tmp_path / "doc.pdf"
+        f.touch()
+        config = {**DEFAULT_CONFIG, "projects": []}
+        result = _classify_by_type("documento", f, config)
+        assert result["project"] == "Sin Clasificar"
 
 
 class TestExtractContentPreview:

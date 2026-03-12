@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-03-12
+### Added
+- Clasificación sin Ollama por tipo/extensión de archivo
+  - Nueva función `_classify_by_type()`: detecta prioridad urgente/archivo
+    usando palabras clave en el nombre del archivo; instaladores y
+    comprimidos van a "archivo" por defecto
+  - Flag `dorg classify --no-ollama` para clasificar sin Ollama
+  - Config `ollama.enabled: false` para deshabilitar Ollama globalmente
+  - Config `ollama.fallback: "auto"` para clasificar por tipo automáticamente
+    cuando Ollama falla/timeout (en lugar de mostrar diálogo interactivo)
+- 8 tests nuevos para `_classify_by_type()`
+
 ## [1.0.2] - 2026-03-12
 ### Fixed
 - `dorg --version` ahora lee la versión del paquete instalado en lugar de tenerla hardcodeada

@@ -19,10 +19,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "organized_folder_name": "Organizado",
     "classify_time": "06:00",  # hora de clasificación diaria
     "ollama": {
+        "enabled": True,              # False → clasificar solo por tipo/extensión
         "base_url": "http://localhost:11434",
         "model": "llama3.2",
         "timeout": 120,
         "confidence_threshold": 0.65,  # bajo este valor → pregunta al usuario
+        "fallback": "ask",            # qué hacer si Ollama falla: "ask" o "auto"
     },
     "projects": [],  # proyectos aprobados por el usuario
     "file_types": {

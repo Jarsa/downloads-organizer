@@ -188,7 +188,7 @@ def move_file_to_organized(
     return dest_path
 
 
-def classify_recent_files(config: dict[str, Any]) -> None:
+def classify_recent_files(config: dict[str, Any], use_ollama: bool = True) -> None:
     """
     Clasifica todos los archivos en la carpeta 'Recién Descargado'.
     Este proceso corre diariamente.
@@ -219,7 +219,7 @@ def classify_recent_files(config: dict[str, Any]) -> None:
 
     for file_path in files:
         try:
-            result = _classify_single_file(file_path, known_projects, config)
+            result = _classify_single_file(file_path, known_projects, config, use_ollama=use_ollama)
             if result:
                 classified += 1
                 # Actualizar lista de proyectos conocidos para los siguientes archivos
@@ -238,71 +238,114 @@ def classify_recent_files(config: dict[str, Any]) -> None:
     )
 
 
+def _classify_by_type(file_type: str, file_path: Path, config: dict[str, Any]) -> dict:
+    """
+    Clasifica un archivo basándose únicamente en su tipo/extensión y palabras
+    clave en el nombre del archivo. No requiere Ollama.
+    """
+    name_lower = file_path.name.lower()
+    priority_keywords = config.get("priority_keywords", {})
+
+    priority = "normal"
+    for kw in priority_keywords.get("urgente", []):
+        if kw in name_lower:
+            priority = "urgente"
+            break
+    if priority == "normal":
+        for kw in priority_keywords.get("archivo", []):
+            if kw in name_lower:
+                priority = "archivo"
+                break
+
+    # Instaladores y comprimidos → archivo por defecto (ya procesados normalmente)
+    if file_type in ("instalador", "comprimido") and priority == "normal":
+        priority = "archivo"
+
+    # Usar el primer proyecto configurado, o Sin Clasificar
+    projects = config.get("projects", [])
+    project = projects[0] if projects else "Sin Clasificar"
+
+    return {"priority": priority, "project": project, "file_type": file_type}
+
+
 def _classify_single_file(
     file_path: Path,
     known_projects: list[str],
     config: dict[str, Any],
+    use_ollama: bool = True,
 ) -> dict | None:
     """Clasifica y mueve un archivo individual."""
     file_type = detect_file_type(file_path, config)
-    ollama_result = classify_file_with_ollama(file_path, file_type, known_projects, config)
+    ollama_cfg = config.get("ollama", {})
+    ollama_enabled = use_ollama and ollama_cfg.get("enabled", True)
+    fallback = ollama_cfg.get("fallback", "ask")
 
-    threshold = config["ollama"].get("confidence_threshold", 0.65)
+    threshold = ollama_cfg.get("confidence_threshold", 0.65)
     decision = None
 
-    if ollama_result is None or "_error" in (ollama_result or {}):
-        # Error con Ollama → preguntar al usuario
-        error_code = (ollama_result or {}).get("_error", "connect")
-        if error_code == "timeout":
-            reasoning = "Ollama tardó demasiado en responder. Considera aumentar ollama.timeout en la configuración."
-        elif error_code == "connect":
-            reasoning = "No se pudo conectar con Ollama. Verifica que esté corriendo (ollama serve)."
-        else:
-            reasoning = f"Error al contactar Ollama: {error_code}"
-        decision = ask_classification(
-            file_path,
-            suggested_project=None,
-            suggested_priority="normal",
-            suggested_type=file_type,
-            reasoning=reasoning,
-            known_projects=known_projects,
-        )
-    elif ollama_result["confidence"] < threshold or ollama_result.get("is_new_project", False):
-        # Baja confianza O proyecto nuevo → aprobar proyecto si aplica
-        project_name = ollama_result["project"]
-        approved_project = project_name
+    if not ollama_enabled:
+        # Modo sin Ollama: clasificar directamente por tipo
+        decision = _classify_by_type(file_type, file_path, config)
+        logger.info(f"[sin-ollama] {file_path.name} → {decision['priority']} / {decision['project']}")
+    else:
+        ollama_result = classify_file_with_ollama(file_path, file_type, known_projects, config)
 
-        if ollama_result.get("is_new_project", False) and project_name not in known_projects:
-            approved = ask_approve_project(project_name, file_path.name)
-            if approved:
-                approved_project = approved
-                add_project(approved_project)
+        if ollama_result is None or "_error" in (ollama_result or {}):
+            error_code = (ollama_result or {}).get("_error", "connect")
+            if error_code == "timeout":
+                reasoning = "Ollama tardó demasiado en responder. Considera aumentar ollama.timeout en la configuración."
+            elif error_code == "connect":
+                reasoning = "No se pudo conectar con Ollama. Verifica que esté corriendo (ollama serve)."
             else:
-                approved_project = "Sin Clasificar"
+                reasoning = f"Error al contactar Ollama: {error_code}"
 
-        if ollama_result["confidence"] < threshold:
-            # Pedir confirmación al usuario
-            decision = ask_classification(
-                file_path,
-                suggested_project=approved_project,
-                suggested_priority=ollama_result["priority"],
-                suggested_type=file_type,
-                reasoning=ollama_result.get("reasoning", ""),
-                known_projects=known_projects,
-            )
+            if fallback == "auto":
+                decision = _classify_by_type(file_type, file_path, config)
+                logger.info(f"[fallback-auto] {file_path.name} → {decision['priority']} / {decision['project']} ({reasoning})")
+            else:
+                decision = ask_classification(
+                    file_path,
+                    suggested_project=None,
+                    suggested_priority="normal",
+                    suggested_type=file_type,
+                    reasoning=reasoning,
+                    known_projects=known_projects,
+                )
+        elif ollama_result["confidence"] < threshold or ollama_result.get("is_new_project", False):
+            # Baja confianza O proyecto nuevo → aprobar proyecto si aplica
+            project_name = ollama_result["project"]
+            approved_project = project_name
+
+            if ollama_result.get("is_new_project", False) and project_name not in known_projects:
+                approved = ask_approve_project(project_name, file_path.name)
+                if approved:
+                    approved_project = approved
+                    add_project(approved_project)
+                else:
+                    approved_project = "Sin Clasificar"
+
+            if ollama_result["confidence"] < threshold:
+                decision = ask_classification(
+                    file_path,
+                    suggested_project=approved_project,
+                    suggested_priority=ollama_result["priority"],
+                    suggested_type=file_type,
+                    reasoning=ollama_result.get("reasoning", ""),
+                    known_projects=known_projects,
+                )
+            else:
+                decision = {
+                    "priority": ollama_result["priority"],
+                    "project": approved_project,
+                    "file_type": file_type,
+                }
         else:
+            # Alta confianza con proyecto conocido → clasificar automáticamente
             decision = {
                 "priority": ollama_result["priority"],
-                "project": approved_project,
+                "project": ollama_result["project"],
                 "file_type": file_type,
             }
-    else:
-        # Alta confianza con proyecto conocido → clasificar automáticamente
-        decision = {
-            "priority": ollama_result["priority"],
-            "project": ollama_result["project"],
-            "file_type": file_type,
-        }
 
     if decision:
         move_file_to_organized(

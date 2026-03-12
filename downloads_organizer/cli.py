@@ -146,7 +146,8 @@ def watch(verbose: bool):
 
 @main.command()
 @click.option("--force", "-f", is_flag=True, help="Clasificar sin importar fecha")
-def classify(force: bool):
+@click.option("--no-ollama", "no_ollama", is_flag=True, help="Clasificar solo por tipo/extensión, sin usar Ollama")
+def classify(force: bool, no_ollama: bool):
     """Clasifica ahora los archivos en 'Recién Descargado' (ejecución manual)."""
     from .classifier import classify_recent_files
 
@@ -159,8 +160,14 @@ def classify(force: bool):
         return
 
     files = list(recent.iterdir())
-    console.print(f"[cyan]Clasificando {len([f for f in files if f.is_file()])} archivo(s)...[/cyan]")
-    classify_recent_files(config)
+    n = len([f for f in files if f.is_file()])
+
+    if no_ollama:
+        console.print(f"[cyan]Clasificando {n} archivo(s) por tipo/extensión (sin Ollama)...[/cyan]")
+    else:
+        console.print(f"[cyan]Clasificando {n} archivo(s) con Ollama...[/cyan]")
+
+    classify_recent_files(config, use_ollama=not no_ollama)
     console.print("[green]✅ Clasificación completada.[/green]")
 
 

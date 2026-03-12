@@ -147,10 +147,14 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional:
     except httpx.ConnectError:
         logger.error("No se pudo conectar a Ollama. ¿Está corriendo? (ollama serve)")
         notify("Downloads Organizer ⚠️", "No se puede conectar a Ollama. Verifica que esté activo.")
-        return None
+        return {"_error": "connect"}
+    except httpx.TimeoutException:
+        logger.error(f"Ollama tardó más de {timeout}s en responder. Considera aumentar ollama.timeout en la config.")
+        notify("Downloads Organizer ⚠️", f"Ollama no respondió en {timeout}s.", "Aumenta ollama.timeout en la config.")
+        return {"_error": "timeout"}
     except Exception as e:
         logger.error(f"Error al clasificar con Ollama: {e}")
-        return None
+        return {"_error": str(e)}
 
 
 def move_file_to_organized(
@@ -246,14 +250,21 @@ def _classify_single_file(
     threshold = config["ollama"].get("confidence_threshold", 0.65)
     decision = None
 
-    if ollama_result is None:
+    if ollama_result is None or "_error" in (ollama_result or {}):
         # Error con Ollama → preguntar al usuario
+        error_code = (ollama_result or {}).get("_error", "connect")
+        if error_code == "timeout":
+            reasoning = "Ollama tardó demasiado en responder. Considera aumentar ollama.timeout en la configuración."
+        elif error_code == "connect":
+            reasoning = "No se pudo conectar con Ollama. Verifica que esté corriendo (ollama serve)."
+        else:
+            reasoning = f"Error al contactar Ollama: {error_code}"
         decision = ask_classification(
             file_path,
             suggested_project=None,
             suggested_priority="normal",
             suggested_type=file_type,
-            reasoning="No se pudo conectar con Ollama.",
+            reasoning=reasoning,
             known_projects=known_projects,
         )
     elif ollama_result["confidence"] < threshold or ollama_result.get("is_new_project", False):

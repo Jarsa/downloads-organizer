@@ -9,6 +9,7 @@ from pathlib import Path
 
 import click
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 
@@ -39,6 +40,10 @@ def _setup_logging(verbose: bool = False) -> None:
             logging.StreamHandler(sys.stdout) if verbose else logging.NullHandler(),
         ],
     )
+    # Silenciar librerías externas que inundan el log con DEBUG
+    logging.getLogger("pdfminer").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 @click.group()
@@ -251,14 +256,15 @@ def logs(lines: int):
     if LOG_FILE.exists():
         content = LOG_FILE.read_text().splitlines()
         for line in content[-lines:]:
+            safe = escape(line)
             if "ERROR" in line:
-                console.print(f"[red]{line}[/red]")
+                console.print(f"[red]{safe}[/red]", highlight=False)
             elif "WARNING" in line:
-                console.print(f"[yellow]{line}[/yellow]")
+                console.print(f"[yellow]{safe}[/yellow]", highlight=False)
             elif "INFO" in line:
-                console.print(f"[dim]{line}[/dim]")
+                console.print(f"[dim]{safe}[/dim]", highlight=False)
             else:
-                console.print(line)
+                console.print(safe, highlight=False)
     else:
         console.print("[yellow]No hay logs disponibles aún.[/yellow]")
 

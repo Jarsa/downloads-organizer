@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-03-12
+### Fixed
+- `dorg --version` ahora lee la versión del paquete instalado en lugar de tenerla hardcodeada
+
 ## [1.0.1] - 2026-03-12
 ### Fixed
 - Ollama timeout aumentado de 60s a 120s (mejora para máquinas con CPU lenta)

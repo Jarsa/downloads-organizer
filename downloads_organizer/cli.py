@@ -47,7 +47,7 @@ def _setup_logging(verbose: bool = False) -> None:
 
 
 @click.group()
-@click.version_option(version="1.0.0", prog_name="Downloads Organizer")
+@click.version_option(package_name="downloads-organizer", prog_name="Downloads Organizer")
 def main():
     """
     📥 Downloads Organizer — Organiza tu carpeta de descargas con IA local (Ollama).

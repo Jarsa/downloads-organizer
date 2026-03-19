@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-03-19
+### Changed
+- Los archivos recién descargados ya NO se mueven a una carpeta intermedia
+  "Recién Descargado" — permanecen en la raíz de Downloads hasta que se
+  clasifiquen, para que se puedan abrir directamente desde el navegador
+- La clasificación (diaria o con `dorg classify`) ahora lee directamente
+  desde la raíz de la carpeta de descargas, excluyendo la subcarpeta "Organizado"
+- El watcher sigue activo para el scheduler diario, pero no mueve archivos
+  al detectar una nueva descarga
+- `dorg status` muestra "Archivos en Downloads" en lugar de "Archivos pendientes"
+  (archivos en "Recién Descargado")
+
+### Removed
+- Carpeta intermedia "Recién Descargado" — ya no se crea ni se usa
+
 ## [1.0.3] - 2026-03-12
 ### Added
 - Clasificación sin Ollama por tipo/extensión de archivo

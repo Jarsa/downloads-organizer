@@ -18,7 +18,6 @@ from .config import (
     LOG_FILE,
     get_downloads_path,
     get_organized_path,
-    get_recent_path,
     load_config,
     save_config,
 )
@@ -54,9 +53,9 @@ def main():
 
     \b
     Flujo:
-      1. Los archivos nuevos van a 'Recién Descargado/' al instante
-      2. Cada día a las 06:00 AM se clasifican con IA
-      3. Se organizan en: Organizado / Prioridad / Proyecto / Tipo
+      1. Los archivos se quedan en Downloads hasta que se clasifiquen
+      2. Cada día a las 06:00 AM (o con 'dorg classify') se organizan con IA
+      3. Se mueven a: Organizado / Prioridad / Proyecto / Tipo
     """
     pass
 
@@ -83,7 +82,6 @@ def install():
         save_config(config)
 
     console.print(f"[cyan]📁 Carpeta monitoreada:[/cyan] {get_downloads_path(config)}")
-    console.print(f"[cyan]📥 Recién descargado:[/cyan] {get_recent_path(config)}")
     console.print(f"[cyan]📂 Organizado en:[/cyan] {get_organized_path(config)}")
     console.print(f"[cyan]⏰ Clasificación diaria:[/cyan] {config.get('classify_time', '06:00')}")
     console.print(f"[cyan]🤖 Modelo Ollama:[/cyan] {config['ollama']['model']}")
@@ -148,26 +146,39 @@ def watch(verbose: bool):
 @click.option("--force", "-f", is_flag=True, help="Clasificar sin importar fecha")
 @click.option("--no-ollama", "no_ollama", is_flag=True, help="Clasificar solo por tipo/extensión, sin usar Ollama")
 def classify(force: bool, no_ollama: bool):
-    """Clasifica ahora los archivos en 'Recién Descargado' (ejecución manual)."""
-    from .classifier import classify_recent_files
+    """Clasifica ahora los archivos en la carpeta de descargas (ejecución manual)."""
+    from .classifier import classify_downloads, _should_process
 
     _setup_logging(verbose=True)
     config = load_config()
-    recent = get_recent_path(config)
+    downloads = get_downloads_path(config)
 
-    if not recent.exists() or not any(recent.iterdir()):
-        console.print("[yellow]No hay archivos en 'Recién Descargado' para clasificar.[/yellow]")
+    if not downloads.exists():
+        console.print(f"[yellow]La carpeta de descargas no existe: {downloads}[/yellow]")
         return
 
-    files = list(recent.iterdir())
-    n = len([f for f in files if f.is_file()])
+    organized = get_organized_path(config)
+
+    def _is_managed(p: Path) -> bool:
+        try:
+            p.relative_to(organized)
+            return True
+        except ValueError:
+            return False
+
+    files = [f for f in downloads.iterdir() if f.is_file() and _should_process(f, config) and not _is_managed(f)]
+    n = len(files)
+
+    if n == 0:
+        console.print("[yellow]No hay archivos en Downloads para clasificar.[/yellow]")
+        return
 
     if no_ollama:
         console.print(f"[cyan]Clasificando {n} archivo(s) por tipo/extensión (sin Ollama)...[/cyan]")
     else:
         console.print(f"[cyan]Clasificando {n} archivo(s) con Ollama...[/cyan]")
 
-    classify_recent_files(config, use_ollama=not no_ollama)
+    classify_downloads(config, use_ollama=not no_ollama)
     console.print("[green]✅ Clasificación completada.[/green]")
 
 
@@ -188,19 +199,26 @@ def status():
     table.add_column("Value")
 
     table.add_row("Servicio", f"[{status_color}]{status_text}[/{status_color}]")
-    table.add_row("Carpeta descargada", str(get_downloads_path(config)))
-    table.add_row("Recién descargado", str(get_recent_path(config)))
-    table.add_row("Organizado", str(get_organized_path(config)))
+    table.add_row("Carpeta monitoreada", str(get_downloads_path(config)))
+    table.add_row("Organizado en", str(get_organized_path(config)))
     table.add_row("Modelo IA", config["ollama"]["model"])
     table.add_row("Clasificación diaria", config.get("classify_time", "06:00"))
     table.add_row("Configuración", str(CONFIG_FILE))
     table.add_row("Logs", str(LOG_FILE))
 
-    # Contar archivos
-    recent = get_recent_path(config)
-    if recent.exists():
-        pending = sum(1 for f in recent.iterdir() if f.is_file())
-        table.add_row("Archivos pendientes", f"[yellow]{pending}[/yellow]")
+    # Contar archivos pendientes en Downloads (raíz)
+    downloads = get_downloads_path(config)
+    organized = get_organized_path(config)
+    if downloads.exists():
+        def _is_managed(p: Path) -> bool:
+            try:
+                p.relative_to(organized)
+                return True
+            except ValueError:
+                return False
+
+        pending = sum(1 for f in downloads.iterdir() if f.is_file() and not _is_managed(f))
+        table.add_row("Archivos en Downloads", f"[yellow]{pending}[/yellow]")
 
     organized = get_organized_path(config)
     if organized.exists():

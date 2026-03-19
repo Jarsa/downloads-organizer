@@ -11,7 +11,7 @@ from typing import Any
 
 import httpx
 
-from .config import add_project, detect_file_type, get_organized_path
+from .config import add_project, detect_file_type, get_downloads_path, get_organized_path
 from .notifier import ask_approve_project, ask_classification, notify
 
 logger = logging.getLogger(__name__)
@@ -188,29 +188,40 @@ def move_file_to_organized(
     return dest_path
 
 
-def classify_recent_files(config: dict[str, Any], use_ollama: bool = True) -> None:
+def classify_downloads(config: dict[str, Any], use_ollama: bool = True) -> None:
     """
-    Clasifica todos los archivos en la carpeta 'Recién Descargado'.
-    Este proceso corre diariamente.
+    Clasifica todos los archivos en la raíz de la carpeta de descargas.
+    Este proceso corre diariamente o bajo demanda.
+    Los archivos permanecen en Downloads hasta que se clasifiquen.
     """
-    from .config import get_recent_path
+    downloads_path = get_downloads_path(config)
+    organized_path = get_organized_path(config)
 
-    recent_path = get_recent_path(config)
-    if not recent_path.exists():
-        logger.info("No hay carpeta de recién descargados.")
+    if not downloads_path.exists():
+        logger.info(f"La carpeta de descargas no existe: {downloads_path}")
         return
 
-    files = [f for f in recent_path.iterdir() if f.is_file() and _should_process(f, config)]
+    def _is_managed(p: Path) -> bool:
+        try:
+            p.relative_to(organized_path)
+            return True
+        except ValueError:
+            return False
+
+    files = [
+        f for f in downloads_path.iterdir()
+        if f.is_file() and _should_process(f, config) and not _is_managed(f)
+    ]
 
     if not files:
-        logger.info("No hay archivos para clasificar hoy.")
+        logger.info("No hay archivos para clasificar.")
         return
 
-    logger.info(f"Clasificando {len(files)} archivos...")
+    logger.info(f"Clasificando {len(files)} archivos en Downloads...")
     notify(
         "Downloads Organizer",
-        f"Clasificando {len(files)} archivo(s) descargado(s)...",
-        "Proceso diario iniciado"
+        f"Clasificando {len(files)} archivo(s) en Downloads...",
+        "Proceso de organización iniciado"
     )
 
     known_projects: list[str] = config.get("projects", [])
@@ -236,6 +247,10 @@ def classify_recent_files(config: dict[str, Any], use_ollama: bool = True) -> No
         "Downloads Organizer ✅",
         f"Clasificación completa: {classified} archivos organizados, {skipped} pendientes.",
     )
+
+
+# Alias para compatibilidad con código existente
+classify_recent_files = classify_downloads
 
 
 def _classify_by_type(file_type: str, file_path: Path, config: dict[str, Any]) -> dict:
